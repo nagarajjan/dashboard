@@ -65,6 +65,9 @@ def create_dashboard_layout(graph_figure, rag_response_text):
                 ]
             ),
 
+            # Hidden component to store the RAG response for PDF generation
+            dcc.Store(id='rag-response-store'),
+
             # PDF export button
             html.Button('Download Report as PDF', id='download-button', n_clicks=0, style={'marginTop': '20px', 'padding': '10px', 'fontSize': '16px'}),
             dcc.Download(id="download-pdf")
@@ -114,10 +117,10 @@ initial_figure = go.Figure(
 
 app.layout = create_dashboard_layout(initial_figure, "Enter a question and click 'Submit'.")
 
-# Callback for RAG query and dynamic chart update
+# Callback for RAG query and storing response
 @app.callback(
     Output('rag-response', 'children'),
-    Output('rag-response', 'data-response'),
+    Output('rag-response-store', 'data'),
     Output('question-input', 'value'),
     Input('submit-button', 'n_clicks'),
     State('question-input', 'value'),
@@ -129,9 +132,11 @@ def update_response(n_clicks, question):
     if question:
         try:
             response = rag_chain.invoke({"query": question})
-            return html.P(response['result']), response['result'], ""
+            response_text = response['result']
+            return html.P(response_text), response_text, ""
         except Exception as e:
-            return html.P(f"An error occurred: {e}", style={'color': 'red'}), f"An error occurred: {e}", ""
+            error_message = f"An error occurred: {e}"
+            return html.P(error_message, style={'color': 'red'}), error_message, ""
     return dash.no_update, dash.no_update, ""
 
 # Callback for PDF download
@@ -139,7 +144,7 @@ def update_response(n_clicks, question):
     Output("download-pdf", "data"),
     Input("download-button", "n_clicks"),
     State('main-graph', 'figure'),
-    State('rag-response', 'data-response'),
+    State('rag-response-store', 'data'),
     prevent_initial_call=True
 )
 def download_pdf(n_clicks, graph_figure, rag_response_text):
@@ -155,7 +160,7 @@ def download_pdf(n_clicks, graph_figure, rag_response_text):
     # Return the PDF file for download
     return dcc.send_bytes(pdf_buffer.getvalue(), "analysis_report.pdf")
 
-
-
+# Run the app with the updated method
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')
+
